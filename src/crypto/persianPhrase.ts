@@ -1,9 +1,10 @@
 /**
- * Maps a SHA-256 fingerprint of the given text to a deterministic
- * human-readable Persian phrase with optional emojis.
+ * Reversible codec that converts binary data (Base64 ciphertext) to a
+ * human-readable Persian phrase and back, without touching the underlying
+ * encryption logic.
  *
- * The underlying hash and encryption logic are not affected.
- * The phrase is derived solely from SHA-256(text) and never stored.
+ * Encoding:  Base64 ciphertext → bytes → one Persian word per byte (base-256)
+ * Decoding:  Persian words (+ optional emojis stripped) → bytes → Base64
  */
 
 // ---------------------------------------------------------------------------
@@ -155,39 +156,81 @@ const EMOJIS: readonly string[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Encoding alphabet – first 256 words form a base-256 codec
+// (one word per byte, indices 0–255)
+// ---------------------------------------------------------------------------
+
+const ENCODING_WORDS: readonly string[] = PERSIAN_WORDS.slice(0, 256);
+
+// Reverse lookup: Persian word → byte value
+const WORD_INDEX = new Map<string, number>(
+  ENCODING_WORDS.map((word, i) => [word, i]),
+);
+
+// Matches any emoji character so they can be stripped on decode
+const EMOJI_RE = /\p{Emoji}/u;
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Computes SHA-256 of `text` and maps the resulting bytes to a deterministic
- * sequence of four Persian words followed by two emojis (when `withEmojis`
- * is `true`).
+ * Encodes a Base64 ciphertext to a human-readable Persian phrase.
  *
- * The original text / ciphertext is never modified; this is a read-only,
- * display-only transformation.
+ * Each byte of the decoded payload is mapped to one Persian word (base-256).
+ * If `withEmojis` is `true`, two decorative emojis derived from the first
+ * and last byte are appended; they are ignored during decoding.
  *
- * @param text       - Any string (typically the Base64 ciphertext).
- * @param withEmojis - When `true`, appends two emojis to the phrase.
- * @returns A space-separated Persian phrase, e.g. "خورشید سیب درخت بادام 🌳🌰"
+ * @param base64     - Standard Base64 ciphertext string.
+ * @param withEmojis - When `true`, appends two decorative emojis.
+ * @returns Space-separated Persian phrase, e.g. "آب آتش آسمان … 🌙⭐"
  */
-export async function toHumanReadable(text: string, withEmojis: boolean): Promise<string> {
-  const encoder = new TextEncoder();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(text));
-  const bytes = new Uint8Array(hashBuffer); // 32 bytes
+export function encodeToPhrase(base64: string, withEmojis: boolean): string {
+  const binaryStr = atob(base64);
+  const bytes = Uint8Array.from(binaryStr, (c) => c.charCodeAt(0));
 
-  const parts: string[] = [];
+  const parts = Array.from(bytes, (b) => ENCODING_WORDS[b]);
 
-  // Four Persian words derived from four 2-byte big-endian chunks (bytes 0–7)
-  for (let i = 0; i < 4; i++) {
-    const value = (bytes[i * 2] << 8) | bytes[i * 2 + 1]; // 0–65 535
-    parts.push(PERSIAN_WORDS[value % PERSIAN_WORDS.length]);
-  }
-
-  // Two emojis derived from bytes 8–9 (optional)
-  if (withEmojis) {
-    parts.push(EMOJIS[bytes[8] % EMOJIS.length]);
-    parts.push(EMOJIS[bytes[9] % EMOJIS.length]);
+  if (withEmojis && bytes.length > 0) {
+    parts.push(EMOJIS[bytes[0] % EMOJIS.length]);
+    parts.push(EMOJIS[bytes[bytes.length - 1] % EMOJIS.length]);
   }
 
   return parts.join(' ');
+}
+
+/**
+ * Decodes a Persian phrase back to the original Base64 ciphertext.
+ *
+ * Emoji tokens are silently stripped before decoding so that phrases
+ * produced with `withEmojis = true` round-trip correctly.
+ *
+ * @param phrase - Space-separated Persian phrase (emojis optional).
+ * @returns Standard Base64 ciphertext string.
+ * @throws Error when the phrase contains an unrecognised word.
+ */
+export function decodeFromPhrase(phrase: string): string {
+  const tokens = phrase
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length > 0 && !EMOJI_RE.test(t));
+
+  if (tokens.length === 0) throw new Error('عبارت فارسی خالی است');
+
+  const bytes = new Uint8Array(tokens.length);
+  for (let i = 0; i < tokens.length; i++) {
+    const idx = WORD_INDEX.get(tokens[i]);
+    if (idx === undefined) throw new Error(`کلمه ناشناخته در عبارت فارسی: «${tokens[i]}»`);
+    bytes[i] = idx;
+  }
+
+  return btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(''));
+}
+
+/**
+ * Returns `true` when `text` contains Persian / Arabic Unicode characters,
+ * indicating it is a Persian-encoded phrase rather than a Base64 string.
+ */
+export function isPersianEncoded(text: string): boolean {
+  return /[\u0600-\u06FF]/.test(text);
 }

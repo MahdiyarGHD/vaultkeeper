@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { KeyInput, TextArea, ActionButton, StatusBanner } from '../components';
 import type { StatusType } from '../components/StatusBanner';
-import { encrypt, decrypt, ALGORITHMS, toHumanReadable } from '../crypto';
+import { encrypt, decrypt, ALGORITHMS, encodeToPhrase, decodeFromPhrase, isPersianEncoded } from '../crypto';
 import type { Algorithm } from '../crypto';
 
 interface CryptoPanelProps {
@@ -15,21 +15,10 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
   const [ciphertext, setCiphertext] = useState('');
   const [status, setStatus] = useState<{ type: StatusType; message: string } | null>(null);
   const [loading, setLoading] = useState<'encrypt' | 'decrypt' | null>(null);
-  const [phrase, setPhrase] = useState('');
+  const [persianMode, setPersianMode] = useState(false);
   const [withEmojis, setWithEmojis] = useState(true);
 
   const algoCfg = ALGORITHMS.find((a) => a.name === algorithm)!;
-
-  // Recompute the Persian phrase whenever the ciphertext or emoji flag changes
-  useEffect(() => {
-    if (!ciphertext.trim()) {
-      setPhrase('');
-      return;
-    }
-    toHumanReadable(ciphertext.trim(), withEmojis)
-      .then(setPhrase)
-      .catch(() => setPhrase(''));
-  }, [ciphertext, withEmojis]);
 
   const handleEncrypt = async () => {
     if (!plaintext.trim()) {
@@ -44,7 +33,7 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
     setStatus(null);
     try {
       const result = await encrypt(plaintext, key, algoCfg.keyLength, algoCfg.ivLength);
-      setCiphertext(result);
+      setCiphertext(persianMode ? encodeToPhrase(result, withEmojis) : result);
       setStatus({ type: 'success', message: 'رمزنگاری با موفقیت انجام شد.' });
     } catch (err) {
       setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطایی ناشناخته رخ داد.' });
@@ -66,7 +55,11 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
     setLoading('decrypt');
     setStatus(null);
     try {
-      const result = await decrypt(ciphertext.trim(), key, algoCfg.keyLength, algoCfg.ivLength);
+      let base64 = ciphertext.trim();
+      if (isPersianEncoded(base64)) {
+        base64 = decodeFromPhrase(base64);
+      }
+      const result = await decrypt(base64, key, algoCfg.keyLength, algoCfg.ivLength);
       setPlaintext(result);
       setStatus({ type: 'success', message: 'رمزگشایی با موفقیت انجام شد.' });
     } catch (err) {
@@ -87,7 +80,6 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
     setKey('');
     setCiphertext('');
     setStatus(null);
-    setPhrase('');
   };
 
   return (
@@ -102,6 +94,29 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
       {/* ── Middle controls ─────────────────────────────────────────── */}
       <div className="flex flex-col gap-3 bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-4">
         <KeyInput value={key} onChange={setKey} label="کلید رمزنگاری / رمزگشایی" />
+
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={persianMode}
+              onChange={(e) => setPersianMode(e.target.checked)}
+              className="accent-indigo-500"
+            />
+            <span className="text-xs text-slate-400">عبارت فارسی</span>
+          </label>
+          {persianMode && (
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={withEmojis}
+                onChange={(e) => setWithEmojis(e.target.checked)}
+                className="accent-indigo-500"
+              />
+              <span className="text-xs text-slate-400">شکلک</span>
+            </label>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           <ActionButton
@@ -130,27 +145,6 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
         onChange={setCiphertext}
         placeholder="متن رمزنگاری شده را اینجا وارد کنید…"
       />
-
-      {/* ── Persian phrase fingerprint ───────────────────────────────── */}
-      {phrase && (
-        <div className="flex flex-col gap-2 bg-slate-800/50 border border-slate-700 rounded-xl px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400">عبارت فارسی (اثر انگشت رمز)</span>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={withEmojis}
-                onChange={(e) => setWithEmojis(e.target.checked)}
-                className="accent-indigo-500"
-              />
-              <span className="text-xs text-slate-400">شکلک</span>
-            </label>
-          </div>
-          <p dir="rtl" className="text-base text-slate-100 font-medium tracking-wide break-words select-all">
-            {phrase}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
