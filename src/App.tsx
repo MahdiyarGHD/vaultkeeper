@@ -31,6 +31,14 @@ export default function App() {
               MahdiyarGHD
             </a>
           </span>
+          <a
+            href="https://github.com/MahdiyarGHD/vaultkeeper"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-500 hover:text-indigo-400 transition-colors"
+          >
+            مخزن پروژه
+          </a>
         </footer>
       </div>
     </div>
