@@ -1,0 +1,104 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+# Allow one concurrent deployment
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  pull-requests: write  # needed to post the preview URL comment
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  # ── Deploy to GitHub Pages (only on push to main) ──────────────────────────
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  # ── Post preview URL as a PR comment ───────────────────────────────────────
+  preview-comment:
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment preview info on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo  = context.repo.repo;
+            const sha   = context.payload.pull_request.head.sha.slice(0, 7);
+            const body  = [
+              '## 🔍 Preview',
+              '',
+              `Build artifact for commit \`${sha}\` has been uploaded.`,
+              '',
+              'The live site will be updated automatically once this PR is merged to **main**:',
+              `> **https://${owner}.github.io/${repo}/`  + '`',
+              '',
+              '_This comment is generated automatically by the Deploy workflow._',
+            ].join('\n');
+
+            // Find existing bot comment to avoid duplicates
+            const comments = await github.rest.issues.listComments({
+              owner, repo,
+              issue_number: context.payload.pull_request.number,
+            });
+            const existing = comments.data.find(
+              c => c.user.type === 'Bot' && c.body.includes('## 🔍 Preview')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo,
+                issue_number: context.payload.pull_request.number,
+                body,
+              });
+            }
