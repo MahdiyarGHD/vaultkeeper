@@ -18,7 +18,6 @@ export default function App() {
         <CryptoPanel algorithm={algorithm} />
 
         <footer className="mt-12 text-center text-xs text-slate-600 select-none flex flex-col gap-1">
-          <span>VaultKeeper — رمزنگاری کاملاً محلی در مرورگر شما | بدون ارسال داده به سرور</span>
           <span>
             ساخته شده با{' '}
             <span className="text-red-500">♥</span>
