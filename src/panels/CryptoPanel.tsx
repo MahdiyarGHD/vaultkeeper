@@ -91,13 +91,13 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
 
         <div className="flex items-center gap-2">
           <ActionButton
-            label="رمزنگاری ↓"
+            label="رمزنگاری"
             icon={<ArrowDown size={15} />}
             onClick={handleEncrypt}
             loading={loading === 'encrypt'}
           />
           <ActionButton
-            label="رمزگشایی ↑"
+            label="رمزگشایی"
             icon={<ArrowUp size={15} />}
             onClick={handleDecrypt}
             loading={loading === 'decrypt'}
