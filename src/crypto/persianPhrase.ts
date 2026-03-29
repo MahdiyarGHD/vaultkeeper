@@ -146,14 +146,25 @@ const PERSIAN_WORDS: readonly string[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Emoji palette (32 entries — power of two for uniform distribution)
+// Emoji palette (64 entries — power of two for uniform distribution)
 // ---------------------------------------------------------------------------
 const EMOJIS: readonly string[] = [
-  '🌙', '⭐', '🌟', '💫', '✨', '🌠', '🌊', '🌸',
-  '🌺', '🌻', '🌹', '🍀', '🌿', '🌲', '🌳', '🌴',
-  '🍁', '🍂', '🍄', '🌾', '🦋', '🌈', '🏔', '🌋',
-  '🌅', '🌄', '🌌', '🌼', '🌷', '🎋', '🏕', '🌃',
+  // Celestial & sky
+  '🌙', '⭐', '🌟', '💫', '✨', '🌠', '🌌', '🌅',
+  '🌄', '🌃', '🌇', '🌆', '🌉', '🌁', '🔮', '☀️',
+  // Nature & plants
+  '🌊', '🌸', '🌺', '🌻', '🌹', '🍀', '🌿', '🌲',
+  '🌳', '🌴', '🍁', '🍂', '🍄', '🌾', '🌼', '🌷',
+  // Elements & weather
+  '🏔', '🌋', '🏕', '🎋', '🔥', '❄️', '⛈️', '🌈',
+  '🌪️', '⛅', '🌦️', '🌧️', '💧', '⚡', '🌬️', '🌫️',
+  // Animals & mythical
+  '🦁', '🐯', '🦊', '🐺', '🦅', '🐬', '🦢', '🦄',
+  '🐲', '🦚', '🦜', '🦩', '🕊️', '🐉', '🏞️', '🌏',
 ];
+
+// Number of words between consecutive emoji markers
+const EMOJI_CHUNK_SIZE = 5;
 
 // ---------------------------------------------------------------------------
 // Encoding alphabet – first 256 words form a base-256 codec
@@ -178,22 +189,39 @@ const EMOJI_RE = /\p{Emoji}/u;
  * Encodes a Base64 ciphertext to a human-readable Persian phrase.
  *
  * Each byte of the decoded payload is mapped to one Persian word (base-256).
- * If `withEmojis` is `true`, two decorative emojis derived from the first
- * and last byte are appended; they are ignored during decoding.
+ * If `withEmojis` is `true`, one decorative emoji is inserted after every
+ * {@link EMOJI_CHUNK_SIZE} words (and after the final word), derived
+ * deterministically from the bytes of that chunk.  Emojis are ignored during
+ * decoding, so phrases with or without emojis round-trip correctly.
  *
  * @param base64     - Standard Base64 ciphertext string.
- * @param withEmojis - When `true`, appends two decorative emojis.
- * @returns Space-separated Persian phrase, e.g. "آب آتش آسمان … 🌙⭐"
+ * @param withEmojis - When `true`, intersperses emojis throughout the phrase.
+ * @returns Space-separated Persian phrase, e.g. "آب آتش آسمان ابر باد 🌙 بهار …"
  */
 export function encodeToPhrase(base64: string, withEmojis: boolean): string {
   const binaryStr = atob(base64);
   const bytes = Uint8Array.from(binaryStr, (c) => c.charCodeAt(0));
 
-  const parts = Array.from(bytes, (b) => ENCODING_WORDS[b]);
+  const words = Array.from(bytes, (b) => ENCODING_WORDS[b]);
 
-  if (withEmojis && bytes.length > 0) {
-    parts.push(EMOJIS[bytes[0] % EMOJIS.length]);
-    parts.push(EMOJIS[bytes[bytes.length - 1] % EMOJIS.length]);
+  if (!withEmojis || bytes.length === 0) {
+    return words.join(' ');
+  }
+
+  // Interleave one emoji after every EMOJI_CHUNK_SIZE words (and after the
+  // last word).  The emoji is derived from the running sum of the bytes in
+  // that chunk, making each marker unique to its position in the payload.
+  const parts: string[] = [];
+  let chunkSum = 0;
+  for (let i = 0; i < words.length; i++) {
+    chunkSum += bytes[i];
+    parts.push(words[i]);
+    const isChunkEnd = (i + 1) % EMOJI_CHUNK_SIZE === 0;
+    const isLast = i === words.length - 1;
+    if (isChunkEnd || isLast) {
+      parts.push(EMOJIS[chunkSum % EMOJIS.length]);
+      chunkSum = 0;
+    }
   }
 
   return parts.join(' ');
