@@ -2,7 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 
 export function Header() {
   return (
-    <header className="flex flex-col items-center gap-2 py-8 select-none">
+    <header className="flex flex-col items-center gap-2 py-6 sm:py-8 select-none">
       <div className="flex items-center gap-3">
         <ShieldCheck className="w-10 h-10 text-indigo-400" strokeWidth={1.5} />
         <h1 className="text-3xl font-bold tracking-tight text-white">

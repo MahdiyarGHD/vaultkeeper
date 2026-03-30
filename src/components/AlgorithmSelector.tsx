@@ -13,7 +13,7 @@ export function AlgorithmSelector({ value, onChange }: AlgorithmSelectorProps) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as Algorithm)}
-        className="bg-slate-800 border border-slate-600 text-slate-100 text-sm rounded-lg
+        className="w-full bg-slate-800 border border-slate-600 text-slate-100 text-sm rounded-lg
                    px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500
                    cursor-pointer transition"
       >

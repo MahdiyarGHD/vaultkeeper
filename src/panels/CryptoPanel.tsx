@@ -118,7 +118,7 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <ActionButton
             label="رمزنگاری"
             icon={<ArrowDown size={15} />}
@@ -132,8 +132,7 @@ export function CryptoPanel({ algorithm }: CryptoPanelProps) {
             loading={loading === 'decrypt'}
             variant="secondary"
           />
-          <div className="flex-1" />
-          <ActionButton label="پاک کردن" onClick={handleClear} variant="ghost" />
+          <ActionButton label="پاک کردن" onClick={handleClear} variant="ghost" className="ms-auto" />
         </div>
 
         {status && <StatusBanner type={status.type} message={status.message} />}
